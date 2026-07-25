@@ -23,6 +23,18 @@ public class BoatCommand {
                         return Command.SINGLE_SUCCESS;
                     })
                 )
+                .then(CommandManager.literal("sb")
+                    .requires(source -> source.hasPermissionLevel(2))
+                    .executes(context -> {
+                        ServerCommandSource source = context.getSource();
+                        ServerPlayerEntity player = source.getPlayer();
+                        if (player != null) {
+                            BoatSpawnLogic.spawnSmallBoat(player);
+                            source.sendFeedback(new LiteralText("Small BOAT spawned!"), true);
+                        }
+                        return Command.SINGLE_SUCCESS;
+                    })
+                )
             );
         });
     }
