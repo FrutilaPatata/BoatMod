@@ -3,13 +3,12 @@ package com.boatmod;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.PoweredRailBlock;
 import net.minecraft.block.BlockState;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.BoatEntity;
 import net.minecraft.entity.vehicle.MinecartEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
 import net.minecraft.block.enums.RailShape;
 import net.minecraft.world.World;
 
@@ -18,22 +17,21 @@ public class BoatSpawnLogic {
         World world = player.world;
         Direction facing = player.getHorizontalFacing();
 
-        Vec3d front = player.getPos().add(facing.getOffsetX() * 3.0, 0.0, facing.getOffsetZ() * 3.0);
-        double x = front.x;
-        double y = front.y;
-        double z = front.z;
+        BlockPos playerPos = player.getBlockPos();
+        BlockPos spawnPos = playerPos.down(3).offset(facing);
 
-        MinecartEntity cart1 = new MinecartEntity(world, x, y, z);
-        MinecartEntity cart2 = new MinecartEntity(world, x, y + 0.875, z);
-        BoatEntity boat = new BoatEntity(world, x, y + 1.75, z);
+        world.setBlockState(spawnPos, Blocks.RED_STAINED_GLASS.getDefaultState());
 
-        float yaw = facing.asRotation();
-        cart1.setYaw(yaw);
-        cart2.setYaw(yaw);
-        boat.setYaw(yaw);
+        MinecartEntity minecart1 = new MinecartEntity(EntityType.FURNACE_MINECART, world);
+        minecart1.setPosition(spawnPos.getX() + 0.5, spawnPos.getY() + 1.0, spawnPos.getZ() + 0.5);
+        world.spawnEntity(minecart1);
 
-        world.spawnEntity(cart1);
-        world.spawnEntity(cart2);
+        MinecartEntity minecart2 = new MinecartEntity(EntityType.FURNACE_MINECART, world);
+        minecart2.setPosition(spawnPos.getX() + 0.5, spawnPos.getY() + 1.0 + 0.6999999881, spawnPos.getZ() + 0.5);
+        world.spawnEntity(minecart2);
+
+        BoatEntity boat = new BoatEntity(world, spawnPos.getX() + 0.5,
+                spawnPos.getY() + 1.0 + 0.6999999881 + 0.6999999881, spawnPos.getZ() + 0.5);
         world.spawnEntity(boat);
     }
 
@@ -41,38 +39,63 @@ public class BoatSpawnLogic {
         World world = player.world;
         Direction facing = player.getHorizontalFacing();
 
-        Vec3d front = player.getPos().add(facing.getOffsetX() * 3.0, 0.0, facing.getOffsetZ() * 3.0);
-        BlockPos railPos = new BlockPos((int) Math.floor(front.x), (int) Math.floor(front.y), (int) Math.floor(front.z));
+        BlockPos playerPos = player.getBlockPos();
 
-        RailShape shape;
+        // Near support: one block below player level, one block forward.
+        BlockPos nearSupportPos = playerPos.down(1).offset(facing);
+        // Far support: same height as player level, two blocks forward.
+        BlockPos farSupportPos = playerPos.offset(facing, 2);
+
+        // Place the staircase support blocks.
+        world.setBlockState(nearSupportPos, Blocks.STONE.getDefaultState());
+        world.setBlockState(farSupportPos, Blocks.STONE.getDefaultState());
+
+        BlockPos nearRailPos = nearSupportPos.up();
+        BlockPos farRailPos = farSupportPos.up();
+
+        RailShape ascendingShape;
+        RailShape straightShape;
         switch (facing) {
-            case NORTH: shape = RailShape.ASCENDING_NORTH; break;
-            case SOUTH: shape = RailShape.ASCENDING_SOUTH; break;
-            case EAST:  shape = RailShape.ASCENDING_EAST;  break;
-            case WEST:  shape = RailShape.ASCENDING_WEST;  break;
-            default:    shape = RailShape.ASCENDING_NORTH; break;
+            case NORTH:
+                ascendingShape = RailShape.ASCENDING_NORTH;
+                straightShape = RailShape.NORTH_SOUTH;
+                break;
+            case SOUTH:
+                ascendingShape = RailShape.ASCENDING_SOUTH;
+                straightShape = RailShape.NORTH_SOUTH;
+                break;
+            case EAST:
+                ascendingShape = RailShape.ASCENDING_EAST;
+                straightShape = RailShape.EAST_WEST;
+                break;
+            case WEST:
+            default:
+                ascendingShape = RailShape.ASCENDING_WEST;
+                straightShape = RailShape.EAST_WEST;
+                break;
         }
 
-        BlockState railState = Blocks.POWERED_RAIL.getDefaultState()
-            .with(PoweredRailBlock.SHAPE, shape)
-            .with(PoweredRailBlock.POWERED, true);
-        world.setBlockState(railPos, railState);
+        // Lower rail: ascending powered rail, creates the slope.
+        BlockState ascendingRailState = Blocks.POWERED_RAIL.getDefaultState()
+                .with(PoweredRailBlock.SHAPE, ascendingShape)
+                .with(PoweredRailBlock.POWERED, true);
+        world.setBlockState(nearRailPos, ascendingRailState);
 
-        double cx = railPos.getX() + 0.5;
-        double cy = railPos.getY() + 0.5;
-        double cz = railPos.getZ() + 0.5;
+        // Upper rail: flat powered rail, continues the track at the top of the slope.
+        BlockState straightRailState = Blocks.POWERED_RAIL.getDefaultState()
+                .with(PoweredRailBlock.SHAPE, straightShape)
+                .with(PoweredRailBlock.POWERED, true);
+        world.setBlockState(farRailPos, straightRailState);
 
-        MinecartEntity cart = new MinecartEntity(world, cx, cy, cz);
-        float yaw = facing.asRotation();
-        cart.setYaw(yaw);
+        // Spawn the minecart on the lower rail, resting near its surface (not block-centered).
+        MinecartEntity cart = new MinecartEntity(world,
+                nearRailPos.getX() + 0.5, nearRailPos.getY() + 0.1875, nearRailPos.getZ() + 0.5);
         world.spawnEntity(cart);
 
-        BoatEntity boat = new BoatEntity(world, cx, cy + 0.6, cz);
-        boat.setYaw(yaw);
+        // Spawn the boat at the cart's position and let startRiding handle mounted placement.
+        BoatEntity boat = new BoatEntity(world,
+                nearRailPos.getX() + 0.5, nearRailPos.getY() + 0.1875, nearRailPos.getZ() + 0.5);
         world.spawnEntity(boat);
         boat.startRiding(cart, true);
-
-        Vec3i vec = facing.getVector();
-        cart.setVelocity(vec.getX() * 0.2, 0.0, vec.getZ() * 0.2);
     }
 }
