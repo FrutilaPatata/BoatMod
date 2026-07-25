@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "boatmod",
+  "version": "${version}",
+  "name": "Boat Mod",
+  "description": "Adds /boat bb command to spawn Big BOAT (redstone term)",
+  "authors": [
+    "Leon"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/boatmod/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.boatmod.BoatMod"
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric-api": "*",
+    "minecraft": "~1.18",
+    "java": ">=17"
+  }
+}
